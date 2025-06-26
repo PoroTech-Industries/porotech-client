@@ -5,18 +5,23 @@ package com.porotech_industries.porocar;
  */
 import com.porotech_industries.porocar.datatransfer.mqtt.*;
 import com.porotech_industries.porocar.datatransfer.serial.*;
+import com.porotech_industries.porocar.datatransfer.webrtc.WebRtcServiceManager;
 import com.porotech_industries.porocar.utils.parser.PoroArduinoParser;
 import org.eclipse.paho.client.mqttv3.MqttException;
 import com.porotech_industries.porocar.utils.logger.*;
 
+import java.io.IOException;
 import java.util.HashMap;
 import java.util.Objects;
+import java.util.concurrent.Executors;
+import java.util.concurrent.TimeUnit;
 
-public class App {
-    public static void main(String[] args) throws MqttException, InterruptedException {
-		System.out.println("Hello World!");
-		String broker = "tcp://10.93.133.78:1883";
-		String TOPIC = "test/1";
+public class  App {
+    public static void main(String[] args) throws MqttException, InterruptedException, IOException {
+		WebRtcServiceManager webrtc = new WebRtcServiceManager();
+		webrtc.startPythonWebRtcService();
+
+		Runtime.getRuntime().addShutdownHook(new Thread(webrtc::stopPythonService));
 		PoroLogger logger = new PoroLogger();
 		PoroSerialReceiver serialReceiver = new PoroSerialReceiver();
 
@@ -25,10 +30,19 @@ public class App {
 		logger.enable();
 		logger.setLogLevel(PoroLogger.LogLevel.INFO);
 
+		Executors.newSingleThreadScheduledExecutor().scheduleAtFixedRate(() -> {
+			boolean healthy = webrtc.isHealthy();
+			PoroLogger.info("WebRTC", (healthy ? "✅ OK" : "❌ DOWN"));
+		}, 0, 10, TimeUnit.SECONDS);
+		System.out.println("Hello World!");
+		String broker = "tcp://10.93.133.78:1883";
+		String TOPIC = "test/1";
+
+
 		serialReceiver.listSerialPorts();
 
 		if (!serialReceiver.connect("ttyACM0", 115200, 100)) {
-			PoroLogger.error("SerialReceiver", "FAiled to connect, dying now");
+			PoroLogger.error("SerialReceiver", "Failed to connect, dying now");
 			//System.exit(69420);
 		} else {
 			  PoroLogger.info("YAY", "MORE YAY");

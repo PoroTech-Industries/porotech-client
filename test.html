@@ -1,0 +1,36 @@
+<!DOCTYPE html>
+<html>
+<body>
+<video id="video" autoplay playsinline></video>
+<script>
+    (async () => {
+        const pc = new RTCPeerConnection({
+            iceServers: [{ urls: 'stun:stun.l.google.com:19302' }]
+        });
+        // eingehenden Stream ins Video-Element packen
+        pc.ontrack = ev => {
+            document.getElementById('video').srcObject = ev.streams[0];
+        };
+        // Offer erstellen
+        const offer = await pc.createOffer({ offerToReceiveVideo: true });
+        await pc.setLocalDescription(offer);
+        // Offer ans Pi schicken
+        const res = await fetch('http://localhost:6060/offer', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ sdp: pc.localDescription.sdp, type: pc.localDescription.type })
+        });
+        const answer = await res.json();
+        // Answer verarbeiten
+        await pc.setRemoteDescription(answer);
+        // (optional) ICE-Candidates nachliefern
+        pc.onicecandidate = e => {
+            if (e.candidate) {
+                // Für Produktion: Kandidaten per Signalisierung tauschen
+                console.log('New ICE candidate:', e.candidate);
+            }
+        };
+    })();
+</script>
+</body>
+</html>
